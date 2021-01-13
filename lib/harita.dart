@@ -1,4 +1,5 @@
 import 'package:NTRoute/bloc/barcode_bloc.dart';
+import 'package:NTRoute/bloc/barcode_bloc_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart' as geo;
@@ -15,12 +16,11 @@ class _HaritaState extends State<Harita> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _barcodeBloc = BarcodeBloc();
+    _barcodeBloc = BarcodeBlocProvider.of(context).barcodeBloc;
   }
 
   @override
   dispose() {
-    _barcodeBloc.dispose();
     super.dispose();
   }
 
@@ -40,7 +40,7 @@ class _HaritaState extends State<Harita> {
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
-          title: Text("harita"),
+          title: Text("Harita"),
           leading: IconButton(
               icon: Icon(Icons.arrow_back_ios),
               onPressed: () => Navigator.pop(context)),
@@ -64,10 +64,12 @@ class _HaritaState extends State<Harita> {
                           markerlar = List.generate(
                               _barcodeBloc.koordinatListesi.length,
                               (index) => Marker(
-                                    markerId: MarkerId(index.toString()),
-                                    position:
-                                        _barcodeBloc.koordinatListesi[index],
-                                  ));
+                                  markerId: MarkerId(index.toString()),
+                                  position:
+                                      _barcodeBloc.koordinatListesi[index],
+                                  infoWindow: InfoWindow(
+                                      title: _barcodeBloc
+                                          .barkodList[index].customerName)));
 
                           return GoogleMap(
                             initialCameraPosition: CameraPosition(

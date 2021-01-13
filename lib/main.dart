@@ -26,9 +26,12 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-        home:
-            BarcodeBlocProvider(barcodeBloc: _barcodeBloc, child: HomePage()));
+    return BarcodeBlocProvider(
+        barcodeBloc: _barcodeBloc,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          home: HomePage(),
+        ));
   }
 }
 
@@ -43,14 +46,15 @@ class _HomePageState extends State<HomePage> {
   LocationServis servis = LocationServis();
 
   @override
-  void initState() {
+  initState() {
     super.initState();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _barcodeBloc = new BarcodeBloc();
+    _barcodeBloc = BarcodeBlocProvider.of(context).barcodeBloc;
+    _barcodeBloc.verileriGetir();
     _barcodeBloc.barcodeStream.listen((barcode) {
       setState(() {
         _barcodeBloc.barkodListesi.add(barcode);
@@ -72,10 +76,12 @@ class _HomePageState extends State<HomePage> {
     // message was in flight, we want to discard the reply rather than calling
     // setState to update our non-existent appearance.
     if (!mounted) return;
-
+    if (_barcodeBloc.barkodListesi.contains(barcodeScanRes) ||
+        barcodeScanRes.length != 9) {
+      showAlertDialogHata(context);
+      return;
+    }
     setState(() {
-      if (_barcodeBloc.barkodListesi.contains(barcodeScanRes) ||
-          barcodeScanRes.length != 9) return;
       barcode = barcodeScanRes;
       servis.sorguYap(barcode).then((value) => showAlertDialog(context, value));
     });
@@ -87,19 +93,48 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
+  showAlertDialogHata(BuildContext context) {
+    Widget kapatButon = FlatButton(
+        onPressed: () {
+          Navigator.pop(context);
+        },
+        child: Text("Kapat"));
+
+    AlertDialog alert = AlertDialog(
+      title: Text("Hata!"),
+      content:
+          Text("Barkod daha önce kaydedilmiş veya okunurken bir hata oluştu!"),
+      actions: [kapatButon],
+    );
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+
   showAlertDialog(BuildContext context, Barkod barkod) {
+    // setState(() {});
     // set up the buttons
     Widget cancelButton = FlatButton(
-      child: Text("Cancel"),
+      child: Text("İptal"),
       onPressed: () {
         Navigator.pop(context);
       },
     );
     Widget continueButton = FlatButton(
-      child: Text("Continue"),
+      child: Text("Yeni Barkod Ekle"),
       onPressed: () {
         _barcodeBloc.barcodeSink.add(barcode);
         scanBarcodeNormal();
+        Navigator.pop(context);
+      },
+    );
+    Widget kaydetKapat = FlatButton(
+      child: Text("Kaydet & Kapat"),
+      onPressed: () {
+        _barcodeBloc.barcodeSink.add(barcode);
         Navigator.pop(context);
       },
     );
@@ -108,10 +143,7 @@ class _HomePageState extends State<HomePage> {
     AlertDialog alert = AlertDialog(
       title: Text("AlertDialog"),
       content: Text(barkod.customerName),
-      actions: [
-        cancelButton,
-        continueButton,
-      ],
+      actions: [continueButton, cancelButton, kaydetKapat],
     );
 
     // show the dialog
@@ -127,13 +159,59 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Barcode scan'),
+        title: const Text('NT Route'),
       ),
       body: Stack(
         children: [
-          ListView(
-            children: List.generate(_barcodeBloc.barkodListesi.length,
-                (index) => Text(_barcodeBloc.barkodListesi[index])),
+          StreamBuilder(
+            stream: _barcodeBloc.barkodStream,
+            builder: (context, snapshot) {
+              if (snapshot.hasData) {
+                return ListView(
+                  children: List.generate(
+                      snapshot.data.length,
+                      (index) => ExpansionTile(
+                            expandedAlignment: Alignment.centerLeft,
+                            title: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                    child: Text(
+                                        snapshot.data[index].customerName)),
+                                IconButton(
+                                    icon: Icon(
+                                      Icons.delete,
+                                      color: Colors.red,
+                                    ),
+                                    onPressed: () {
+                                      _barcodeBloc.sil(index);
+                                    })
+                              ],
+                            ),
+                            children: [
+                              Text(
+                                snapshot.data[index].customerAddress
+                                    .toString()
+                                    .trim(),
+                              ),
+                              Text(
+                                snapshot.data[index].customerPhone,
+                              ),
+                              Text(
+                                snapshot.data[index].latitude.toString(),
+                              ),
+                              Text(
+                                snapshot.data[index].longitude.toString(),
+                              ),
+                            ],
+                          )),
+                );
+              } else
+                return Center(
+                  child: CircularProgressIndicator(),
+                );
+            },
           ),
           Positioned(
             bottom: 20,
@@ -144,14 +222,14 @@ class _HomePageState extends State<HomePage> {
                   width: 200,
                   child: Center(
                     child: Text(
-                      "Okut",
+                      "Yeniden Getir",
                       style: TextStyle(color: Colors.white, fontSize: 24),
                     ),
                   )),
               color: Colors.blue,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
-              onPressed: () => scanBarcodeNormal(),
+              onPressed: () => _barcodeBloc.verileriGetir(),
             ),
           )
         ],
@@ -160,7 +238,7 @@ class _HomePageState extends State<HomePage> {
         child: Icon(Icons.navigation),
         onPressed: () {
           _barcodeBloc.rotaAl();
-          Navigator.pushReplacement(
+          Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => Harita()),
           );

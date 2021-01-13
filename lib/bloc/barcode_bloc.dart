@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:NTRoute/barcode.dart';
 import 'package:NTRoute/servis.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_maps_webservice/directions.dart' as direction;
@@ -10,6 +11,7 @@ class BarcodeBloc {
       apiKey: "AIzaSyC2TRVqnMgCx5b2pFm3Cn88io8lsp6NGu4");
   List<String> barkodListesi = new List<String>();
   List<LatLng> koordinatListesi = new List<LatLng>();
+  List<Barkod> barkodList = new List<Barkod>();
   LocationServis servis = new LocationServis();
   StreamController<String> barcodeStreamController =
       new StreamController<String>.broadcast();
@@ -21,15 +23,23 @@ class BarcodeBloc {
   Stream<List<LatLng>> get rotaStream => rotaStreamController.stream;
   Sink<List<LatLng>> get rotaSink => rotaStreamController.sink;
 
+  StreamController<List<Barkod>> barkodStreamController =
+      new StreamController<List<Barkod>>.broadcast();
+  Stream<List<Barkod>> get barkodStream => barkodStreamController.stream;
+  Sink<List<Barkod>> get barkodSink => barkodStreamController.sink;
+
   BarcodeBloc() {
     barcodeStream.listen((event) {
-      servis.sorguYap(event).then((value) =>
-          koordinatListesi.add(new LatLng(value.latitude, value.longitude)));
+      servis.sorguYap(event).then((value) {
+        koordinatListesi.add(new LatLng(value.latitude, value.longitude));
+        barkodList.add(value);
+      });
     });
   }
   dispose() {
     barcodeStreamController.close();
     rotaStreamController.close();
+    barkodStreamController.close();
   }
 
   Future<geo.Position> konumIste() async {
@@ -58,6 +68,15 @@ class BarcodeBloc {
           )
           .then((value) => _polyLineCiz(value));
     });
+  }
+
+  void sil(int index) {
+    barkodList.removeAt(index);
+    barkodSink.add(barkodList);
+    koordinatListesi.clear();
+    for (var item in barkodList) {
+      koordinatListesi.add(LatLng(item.latitude, item.longitude));
+    }
   }
 
   void _polyLineCiz(direction.DirectionsResponse value) {
@@ -99,5 +118,17 @@ class BarcodeBloc {
       poly.add(p);
     }
     return poly;
+  }
+
+  void verileriGetir() {
+    servis.sorguYapRandom().then((value) {
+      barkodList.clear();
+      barkodList.addAll(value);
+      koordinatListesi.clear();
+      for (var item in barkodList) {
+        koordinatListesi.add(LatLng(item.latitude, item.longitude));
+      }
+      barkodSink.add(barkodList);
+    });
   }
 }
